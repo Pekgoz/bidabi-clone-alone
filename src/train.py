@@ -1,7 +1,7 @@
 import os
 import random
-from pathlib import Path
 
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,6 +15,7 @@ from torchvision import datasets, transforms, models
 DATA_DIR = "data/raw/images"
 MODEL_DIR = "models"
 MODEL_PATH = os.path.join(MODEL_DIR, "best_model.pth")
+PLOTS_DIR = "plots"
 
 IMG_SIZE = 224
 BATCH_SIZE = 16
@@ -124,6 +125,36 @@ def evaluate(model, dataloader, criterion, device):
 
 
 # =========================
+# Génération des graphes
+# =========================
+def save_training_plots(train_losses, val_losses, train_accs, val_accs):
+    os.makedirs(PLOTS_DIR, exist_ok=True)
+    epochs = range(1, len(train_losses) + 1)
+
+    plt.figure()
+    plt.plot(epochs, train_losses, label="Train Loss")
+    plt.plot(epochs, val_losses, label="Val Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Courbe de loss")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(PLOTS_DIR, "loss.png"))
+    plt.close()
+
+    plt.figure()
+    plt.plot(epochs, train_accs, label="Train Accuracy")
+    plt.plot(epochs, val_accs, label="Val Accuracy")
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy")
+    plt.title("Courbe d'accuracy")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(PLOTS_DIR, "accuracy.png"))
+    plt.close()
+
+
+# =========================
 # Main
 # =========================
 def main():
@@ -151,9 +182,19 @@ def main():
 
     best_val_loss = float("inf")
 
+    train_losses = []
+    val_losses = []
+    train_accs = []
+    val_accs = []
+
     for epoch in range(EPOCHS):
         train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, DEVICE)
         val_loss, val_acc = evaluate(model, val_loader, criterion, DEVICE)
+
+        train_losses.append(train_loss)
+        val_losses.append(val_loss)
+        train_accs.append(train_acc)
+        val_accs.append(val_acc)
 
         print(
             f"Epoch [{epoch+1}/{EPOCHS}] "
@@ -169,11 +210,14 @@ def main():
             }, MODEL_PATH)
             print(f"Meilleur modèle sauvegardé dans {MODEL_PATH}")
 
+    save_training_plots(train_losses, val_losses, train_accs, val_accs)
+
     checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
     model.load_state_dict(checkpoint["model_state_dict"])
 
     test_loss, test_acc = evaluate(model, test_loader, criterion, DEVICE)
     print(f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.4f}")
+    print(f"Graphiques sauvegardés dans {PLOTS_DIR}")
 
 
 if __name__ == "__main__":
