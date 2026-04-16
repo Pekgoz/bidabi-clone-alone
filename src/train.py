@@ -2,10 +2,12 @@ import os
 import random
 
 import matplotlib.pyplot as plt
+from PIL import Image
+from sklearn.model_selection import train_test_split
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms, models
 
 
@@ -35,6 +37,27 @@ def set_seed(seed=42):
 
 
 # =========================
+# Dataset custom
+# =========================
+class CustomDataset(Dataset):
+    def __init__(self, samples, transform=None):
+        self.samples = samples
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        path, label = self.samples[idx]
+        image = Image.open(path).convert("RGB")
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image, label
+
+
+# =========================
 # Dataset + transforms
 # =========================
 def get_datasets(data_dir):
@@ -55,20 +78,28 @@ def get_datasets(data_dir):
     class_names = full_dataset.classes
     num_classes = len(class_names)
 
-    total_size = len(full_dataset)
-    train_size = int(0.7 * total_size)
-    val_size = int(0.15 * total_size)
-    test_size = total_size - train_size - val_size
+    samples = full_dataset.samples
+    labels = [label for _, label in samples]
 
-    train_dataset, val_dataset, test_dataset = random_split(
-        full_dataset,
-        [train_size, val_size, test_size],
-        generator=torch.Generator().manual_seed(SEED)
+    train_samples, temp_samples = train_test_split(
+        samples,
+        test_size=0.3,
+        stratify=labels,
+        random_state=SEED
     )
 
-    train_dataset.dataset = datasets.ImageFolder(data_dir, transform=train_transform)
-    val_dataset.dataset = datasets.ImageFolder(data_dir, transform=eval_transform)
-    test_dataset.dataset = datasets.ImageFolder(data_dir, transform=eval_transform)
+    temp_labels = [label for _, label in temp_samples]
+
+    val_samples, test_samples = train_test_split(
+        temp_samples,
+        test_size=0.5,
+        stratify=temp_labels,
+        random_state=SEED
+    )
+
+    train_dataset = CustomDataset(train_samples, transform=train_transform)
+    val_dataset = CustomDataset(val_samples, transform=eval_transform)
+    test_dataset = CustomDataset(test_samples, transform=eval_transform)
 
     return train_dataset, val_dataset, test_dataset, class_names, num_classes
 
